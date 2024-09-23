@@ -10,7 +10,7 @@
 
 // Sets default values
 APlayer_Character::APlayer_Character():
-	CameraBaseTurnRate(45.f), CameraBaseLookUpRate(45.f), MovementSpeed(1.f), DashImpulse(1500.f), DashCooldown(3.f), MaxStamina(100.f), StaminaRegenRate(5.f) //Initial Values
+	CameraBaseTurnRate(45.f), CameraBaseLookUpRate(45.f), MovementSpeed(1.f), DashImpulse(1500.f), DashCooldown(3.f), MaxStamina(100.f), StaminaRegenRate(5.f), MaxHealth(100.f) //Initial Values
 {
  	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
@@ -28,8 +28,9 @@ APlayer_Character::APlayer_Character():
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationRoll = false;
 
-	//Stamina initial value
+	//Initial values
 	Stamina = MaxStamina;
+	Health = MaxHealth;
 }
 
 //Methos used to know when the player touches ground
@@ -219,6 +220,27 @@ void APlayer_Character::StartDashCooldownTimer()
 	GetWorldTimerManager().SetTimer(CooldownDashTimerHandle, this, &APlayer_Character::ResetDashCooldown, DashCooldown, false);
 }
 
+void APlayer_Character::PlayerTakeDamage() //float DamageAmount
+{
+	if (Health <= 0.0f) return;
+
+	Health -= 20;
+	if (HurtSound)
+	{
+		UGameplayStatics::PlaySound2D(this, HurtSound);
+	}
+	if (Health <= 0.0f)
+	{
+		Die();
+	}
+}
+
+void APlayer_Character::Die()
+{
+	UE_LOG(LogTemp, Warning, TEXT("Player has died!"));
+	Destroy();
+}
+
 
 // Called every frame
 void APlayer_Character::Tick(float DeltaTime)
@@ -259,4 +281,7 @@ void APlayer_Character::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 
 	//Bind the dash input to the character action
 	PlayerInputComponent->BindAction("Dash", IE_Pressed, this, &APlayer_Character::Dash);
+
+	//To make tests the take damage can be called like this
+	PlayerInputComponent->BindAction("Hurt", IE_Pressed, this, &APlayer_Character::PlayerTakeDamage);
 }

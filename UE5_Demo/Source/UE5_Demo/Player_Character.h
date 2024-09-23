@@ -75,6 +75,14 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Stamina, meta = (AllowPrivateAccess = "true"))
 	float StaminaRegenRate;
 
+	//Variable Health
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = Health, meta = (AllowPrivateAccess = "true"))
+	float Health;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Health, meta = (AllowPrivateAccess = "true"))
+	float MaxHealth;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Sound, meta = (AllowPrivateAccess = "true"))
+	USoundCue* HurtSound;
+
 public:
 	// Sets default values for this character's properties
 	APlayer_Character();
@@ -113,6 +121,10 @@ protected:
 	void ResetDashCooldown();
 	void StartDashCooldownTimer();
 	FTimerHandle CooldownDashTimerHandle;
+
+	//Methods to recieve damage
+	void PlayerTakeDamage(); //float DamageAmount
+	void Die();
 
 public:	
 	// Called every frame
