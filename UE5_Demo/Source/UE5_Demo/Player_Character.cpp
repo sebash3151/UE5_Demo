@@ -10,7 +10,7 @@
 
 // Sets default values
 APlayer_Character::APlayer_Character():
-	CameraBaseTurnRate(45.f), CameraBaseLookUpRate(45.f), MovementSpeed(1.f), DashMultipier(2.f) //Initial Values
+	CameraBaseTurnRate(45.f), CameraBaseLookUpRate(45.f), MovementSpeed(1.f), DashImpulse(1500.f), DashCooldown(3.f), MaxStamina(100.f), StaminaRegenRate(5.f) //Initial Values
 {
  	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
@@ -27,6 +27,9 @@ APlayer_Character::APlayer_Character():
 	bUseControllerRotationYaw = true;
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationRoll = false;
+
+	//Stamina initial value
+	Stamina = MaxStamina;
 }
 
 //Methos used to know when the player touches ground
@@ -102,16 +105,15 @@ void APlayer_Character::PostInitializeComponents()
 {
 	Super::PostInitializeComponents();
 	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
-	AnimInstance->OnMontageEnded.AddDynamic(this, &APlayer_Character::OnAttackMontageEnded);
+	AnimInstance->OnMontageEnded.AddDynamic(this, &APlayer_Character::OnMontageEnded);
 	
 }
 
 //Called when the montage of the attack ends to let a new attack be performed
-void APlayer_Character::OnAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+void APlayer_Character::OnMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
 	if (IsAttacking) {
 		IsAttacking = false;
-		IsDashing = false;
 		if (IsDashing) {
 			GetCharacterMovement()->GroundFriction = 8.0f;
 		}
@@ -119,7 +121,7 @@ void APlayer_Character::OnAttackMontageEnded(UAnimMontage* Montage, bool bInterr
 }
 
 //Method that modifies the speed of the character while is crouched and activates the bool
-void APlayer_Character::Crouch()
+void APlayer_Character::StartCrouch()
 {
 	IsCrouching = true;
 	MovementSpeed = 0.5f;
@@ -141,7 +143,11 @@ void APlayer_Character::Jump()
 		const auto bIsInAir{ GetCharacterMovement()->IsFalling() };
 		if (bIsInAir) 
 		{
+			//Condition to perform the double jump
+			if (Stamina < DoubleJumpStaminaCost) return;
 			DoubleJumped = true;
+
+			//Variables to generate the force that is going to launch the player for the double jump
 			const FVector launchVelocity{ 0.0f, 0.0f, GetCharacterMovement()->JumpZVelocity };
 			const auto bCanOverrideVelocityInXAndY{ false };
 			const auto bCanOverrideVelocityInZ{ true };
@@ -150,6 +156,7 @@ void APlayer_Character::Jump()
 			if (HeavyJumpSound) {
 				UGameplayStatics::PlaySound2D(this, HeavyJumpSound);
 			}
+			Stamina -= DoubleJumpStaminaCost;
 			bCanMakeJump = false;
 		}
 
@@ -162,8 +169,13 @@ void APlayer_Character::Jump()
 
 void APlayer_Character::Dash()
 {
-	if (IsDashing || GetLastMovementInputVector().IsZero() ) return;
-	if (DashSound) {
+	//Conditions to start the dash
+	if (IsDashing || GetLastMovementInputVector().IsZero()) return;
+	if (GetCharacterMovement()->IsFalling() && Stamina < AerialDashStaminaCost) return;
+	if (!GetCharacterMovement()->IsFalling() && Stamina < GroundDashStaminaCost) return;
+
+	if (DashSound) 
+	{
 		UGameplayStatics::PlaySound2D(this, DashSound);
 	}
 	//Gets the animinstance and plays the dash animation
@@ -175,7 +187,7 @@ void APlayer_Character::Dash()
 		IsAttacking = true;
 	}
 	//Get the necesary parameters to lauch the character to the front
-	FVector launchVelocity = GetLastMovementInputVector() * DashMultipier;
+	FVector launchVelocity = GetLastMovementInputVector() * DashImpulse;
 	const bool bCanOverrideVelocityInXAndY{ true };
 	const bool bCanOverrideVelocityInZ{ false };
 
@@ -184,25 +196,39 @@ void APlayer_Character::Dash()
 
 	//Lauch the character
 	LaunchCharacter(launchVelocity, bCanOverrideVelocityInXAndY, bCanOverrideVelocityInZ);
-
-	/*
-	float actualspeed = GetCharacterMovement()->Velocity.Size();
-	float actualJump = GetCharacterMovement()->JumpZVelocity;
-	if (actualJump <= 1) actualJump = 1;
-	if (actualspeed <= 1) actualspeed = 1;
-	const FVector launchVelocity{ actualspeed * DashMultipier * -1 , 0.0f , actualJump * -5.f };
-	const auto bCanOverrideVelocityInXAndY{ true };
-	const auto bCanOverrideVelocityInZ{ true };
-
-	LaunchCharacter(launchVelocity, bCanOverrideVelocityInXAndY, bCanOverrideVelocityInZ);
-	*/
+	if (GetCharacterMovement()->IsFalling()) 
+	{
+		Stamina -= AerialDashStaminaCost;
+	}
+	else
+	{
+		Stamina -= GroundDashStaminaCost;
+	}
+	StartDashCooldownTimer();
 }
+
+//Method to reset the ability to dash again
+void APlayer_Character::ResetDashCooldown()
+{
+	IsDashing = false;
+}
+
+//Method to start a timer for the dash cooldown
+void APlayer_Character::StartDashCooldownTimer()
+{
+	GetWorldTimerManager().SetTimer(CooldownDashTimerHandle, this, &APlayer_Character::ResetDashCooldown, DashCooldown, false);
+}
+
 
 // Called every frame
 void APlayer_Character::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	if (Stamina < MaxStamina) {
+		Stamina += StaminaRegenRate * DeltaTime;
+		Stamina = FMath::Min(Stamina, MaxStamina);
+	}
 }
 
 // Called to bind functionality to input
@@ -223,13 +249,12 @@ void APlayer_Character::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 
 	//Bind the jump inputs to the character action
 	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &APlayer_Character::Jump);
-	//PlayerInputComponent->BindAction("Jump", IE_Released, this, &ACharacter::StopJumping);
 
 	//Bind the attack input to the character action
 	PlayerInputComponent->BindAction("Attack", IE_Pressed, this, &APlayer_Character::Attack);
 
 	//Bind the crouch input to the character action
-	PlayerInputComponent->BindAction("Crouch", IE_Pressed, this, &APlayer_Character::Crouch);
+	PlayerInputComponent->BindAction("Crouch", IE_Pressed, this, &APlayer_Character::StartCrouch);
 	PlayerInputComponent->BindAction("Crouch", IE_Released, this, &APlayer_Character::StopCrouching);
 
 	//Bind the dash input to the character action

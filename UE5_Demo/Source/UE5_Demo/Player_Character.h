@@ -38,7 +38,7 @@ private:
 	//Editable for the crouch action
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
 	bool IsCrouching = false;
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
 	float MovementSpeed;
 
 	//Editable of the sound property of the jump
@@ -48,6 +48,8 @@ private:
 	USoundCue* HeavyJumpSound;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
 	bool DoubleJumped = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Stamina, meta = (AllowPrivateAccess = "true"))
+	float DoubleJumpStaminaCost;
 
 	//Editable of the anim montage and sound for the dash
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Animation, meta = (AllowPrivateAccess = "true"))
@@ -57,7 +59,21 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Sound, meta = (AllowPrivateAccess = "true"))
 	USoundCue* DashSound;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
-	float DashMultipier;
+	float DashImpulse;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
+	float DashCooldown;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Stamina, meta = (AllowPrivateAccess = "true"))
+	float GroundDashStaminaCost; 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Stamina, meta = (AllowPrivateAccess = "true"))
+	float AerialDashStaminaCost;
+
+	//Variable Stamina
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = Stamina, meta = (AllowPrivateAccess = "true"))
+	float Stamina;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Stamina, meta = (AllowPrivateAccess = "true"))
+	float MaxStamina;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Stamina, meta = (AllowPrivateAccess = "true"))
+	float StaminaRegenRate;
 
 public:
 	// Sets default values for this character's properties
@@ -82,10 +98,10 @@ protected:
 	void Attack();
 	virtual void PostInitializeComponents() override;
 	UFUNCTION()
-	void OnAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+	void OnMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 
 	//Methods for crouching
-	void Crouch();
+	void StartCrouch();
 	void StopCrouching();
 
 	//Method and variable for the jump
@@ -94,6 +110,9 @@ protected:
 
 	//Method for the dash
 	void Dash();
+	void ResetDashCooldown();
+	void StartDashCooldownTimer();
+	FTimerHandle CooldownDashTimerHandle;
 
 public:	
 	// Called every frame
